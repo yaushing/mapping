@@ -6,7 +6,6 @@ from hub import port, motion_sensor
 import motor_pair
 import runloop
 import math
-from typing import Coroutine
 
 
 
@@ -185,28 +184,43 @@ def c(x, r, coords):
 
 def solve(r, division, coords, coefficients, precision):
     intersections = []
-    for i in range((coords[0] - r) * division, (coords[0] + r) * division + 1):
+    for i in range(int((coords[0] - r) * division), int((coords[0] + r) * division + 1)):
         #print("x = " + str(i/division) + " " + str(c(i/division, r, coords)) + " " + str(f(i/division, coefficients)))
-        if (abs(c(i/division, r, coords)[0] - f(i / division, coefficients)) < precision):
+        if (abs(c(i/division, r, coords)[0] - f(i / division, coefficients)) < precision) or (abs(c(i/division, r, coords)[1] - f(i / division, coefficients)) < precision):
             #print("(" + str(i/division) + "," + str(f(i/division, coefficients)) + ") is an intercept. Error of " + str(abs(c(i/division, r, coords)[0] - f(i / division, coefficients)))+ ")")
             #print("Saving: (" + str(round(i/division, 2)) + "," + str(round(f(i/division, coefficients), 2)) + ")")
             intersections.append([round(i/division, 2), round(f(i/division, coefficients), 2)])
     return intersections
+
+
+
+
 ##########################
 ### FRONTEND FUNCTIONS ###
 ##########################
 async def curve(coords, target_co_ords, look_ahead):
     model = regress(target_co_ords)
-    while coords[0] < target_co_ords[-1][0]:
-        print(coords, target_co_ords[-1][0])
-        possible_targets = solve(look_ahead, 100, coords, model.coef_, 0.01)
-        while len(possible_targets) == 0:
-            precision = 0.05
-            precision *= 5
-            possible_targets = solve(look_ahead, 100, coords, model.coef_, precision)
-        chosen_target = possible_targets[-1]
-        coords = chosen_target
-    print(coords)
+    direction = 1 if target_co_ords[-1][0] > coords[0] else -1
+    if direction == 1:
+        while coords[0] < target_co_ords[-1][0]:
+            print(coords)
+            possible_targets = solve(look_ahead, 100, coords, model.coef_, 0.01)
+            while len(possible_targets) == 0 or possible_targets[-1][0] < coords[0]:
+                precision = 0.05
+                precision *= 5
+                possible_targets = solve(look_ahead, 100, coords, model.coef_, precision)
+            chosen_target = possible_targets[-1]
+            coords = chosen_target
+    else:
+        while coords[0] > target_co_ords[-1][0]:
+            possible_targets = solve(look_ahead, 100, coords, model.coef_, 0.01)
+            while len(possible_targets) == 0 or possible_targets[0][0] > coords[0]:
+                precision = 0.05
+                precision *= 5
+                possible_targets = solve(look_ahead, 100, coords, model.coef_, precision)
+            chosen_target = possible_targets[0]
+            coords = chosen_target
+    return coords
 
 async def go_to(target_co_ords, turn = True):
     direction = -1
