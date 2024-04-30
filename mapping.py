@@ -13,9 +13,8 @@ import math
 ### VARIABLES ###
 #################
 scale = 360
-degrees_turn = 0
 coords = [0, 0]
-actual_angle = 0
+bearing = 0
 
 
 
@@ -192,35 +191,38 @@ def solve(r, division, coords, coefficients, precision):
             intersections.append([round(i/division, 2), round(f(i/division, coefficients), 2)])
     return intersections
 
-
+def update_coords(coords, bearing):
+    print(f"New Coords: {coords} | Bearing: {bearing}")
+    #| Angle: {math.degrees(math.atan(bearing))}
 
 
 ##########################
 ### FRONTEND FUNCTIONS ###
 ##########################
-async def curve(coords, target_co_ords, look_ahead):
+async def curve(coords, bearing, target_co_ords, look_ahead, pure_pursuit = True):
     model = regress(target_co_ords)
     direction = 1 if target_co_ords[-1][0] > coords[0] else -1
-    if direction == 1:
-        while coords[0] < target_co_ords[-1][0]:
-            print(coords)
+    if pure_pursuit:
+        while ((coords[0] < target_co_ords[-1][0] and direction == 1) or (coords[0] > target_co_ords[-1][0] and direction == -1)):
             possible_targets = solve(look_ahead, 100, coords, model.coef_, 0.01)
+            precision = 0.05
             while len(possible_targets) == 0 or possible_targets[-1][0] < coords[0]:
-                precision = 0.05
+                if precision >= 1:
+                    possible_targets = [[coords[0] + 1, f(coords[0] + 1, model.coef_)]]
+                    break
                 precision *= 5
                 possible_targets = solve(look_ahead, 100, coords, model.coef_, precision)
             chosen_target = possible_targets[-1]
+            print(coords, chosen_target)
             coords = chosen_target
+            coords = [round(coords[0], 2), round(coords[1], 2)]
+        return coords, bearing
     else:
-        while coords[0] > target_co_ords[-1][0]:
-            possible_targets = solve(look_ahead, 100, coords, model.coef_, 0.01)
-            while len(possible_targets) == 0 or possible_targets[0][0] > coords[0]:
-                precision = 0.05
-                precision *= 5
-                possible_targets = solve(look_ahead, 100, coords, model.coef_, precision)
-            chosen_target = possible_targets[0]
-            coords = chosen_target
-    return coords
+        while ((coords[0] < target_co_ords[-1][0] and direction == 1) or (coords[0] > target_co_ords[-1][0] and direction == -1)):
+            x = round(coords[0] + (direction * look_ahead), 2)
+            y = round(f(x, model.coef_), 2)
+            coords = [x, y]
+        return coords, bearing
 
 async def go_to(target_co_ords, turn = True):
     direction = -1
@@ -246,7 +248,8 @@ async def turn_degrees(motorpair, degrees):
 ############
 async def main():
     motor_pair.pair(motor_pair.PAIR_1, port.A, port.B)
-    await curve(coords, [[1, 4], [2, 15], [3, 40], [4, 85]], 2)
+    await go_to([1, 1])
+    #await curve(coords, [[1, 4], [2, 15], [3, 40], [4, 85]], 2)
     #await turn_degrees(motor_pair.PAIR_1, 90)
     #motor_pair.move_tank_for_degrees(motor_pair.PAIR_1, 720, 1000, -1000)
 

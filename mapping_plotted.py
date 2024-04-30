@@ -13,6 +13,7 @@ from matplotlib import pyplot as plt
 coords = [0, 0]
 hist = []
 fake_hist = []
+bearing = 0
 
 
 
@@ -86,6 +87,11 @@ class LinearRegression:
                 Stot += (target_y[i][0] - ymean)**2
             R2 = 1 - (Sres / Stot)
             return R2
+        
+        def differenciate(self):
+            filtered = self.coef_[:-1]
+            final = [(len(filtered) - i) *  filtered[i] for i in range(len(filtered))]
+            return final
 
 
 
@@ -189,8 +195,9 @@ def solve(r, division, coords, coefficients, precision):
             intersections.append([round(i/division, 2), round(f(i/division, coefficients), 2)])
     return intersections
 
-def update_coords(coords):
-    print(f"New Coords: {coords}")
+def update_coords(coords, bearing):
+    print(f"New Coords: {coords} | Bearing: {bearing}")
+    #| Angle: {math.degrees(math.atan(bearing))}
     hist.append(coords)
 
 def update_fake_coords(coords):
@@ -201,72 +208,61 @@ def update_fake_coords(coords):
 ##########################
 ### FRONTEND FUNCTIONS ###
 ##########################
-def curve(coords, target_co_ords, look_ahead, path = False):
+def curve(coords, bearing, target_co_ords, look_ahead, pure_pursuit = True, sub_pure = False, path = False):
     model = regress(target_co_ords)
     direction = 1 if target_co_ords[-1][0] > coords[0] else -1
-    if direction == 1:
-        while coords[0] < target_co_ords[-1][0]:
-            if not path: update_coords(coords)
-            else: update_fake_coords(coords)
+    if pure_pursuit:
+        while ((coords[0] < target_co_ords[-1][0] and direction == 1) or (coords[0] > target_co_ords[-1][0] and direction == -1)):
             possible_targets = solve(look_ahead, 100, coords, model.coef_, 0.01)
+            precision = 0.05
             while len(possible_targets) == 0 or possible_targets[-1][0] < coords[0]:
-                precision = 0.05
+                if precision >= 1:
+                    possible_targets = [[coords[0] + 1, f(coords[0] + 1, model.coef_)]]
+                    break
                 precision *= 5
                 possible_targets = solve(look_ahead, 100, coords, model.coef_, precision)
             chosen_target = possible_targets[-1]
+            print(coords, chosen_target)
             coords = chosen_target
-    else:
-        while coords[0] > target_co_ords[-1][0]:
-            if not path: update_coords(coords)
+            coords = [round(coords[0], 2), round(coords[1], 2)]
+            if not path: update_coords(coords, bearing)
             else: update_fake_coords(coords)
-            possible_targets = solve(look_ahead, 100, coords, model.coef_, 0.01)
-            while len(possible_targets) == 0 or possible_targets[0][0] > coords[0]:
-                precision = 0.05
-                precision *= 5
-                possible_targets = solve(look_ahead, 100, coords, model.coef_, precision)
-            chosen_target = possible_targets[0]
-            coords = chosen_target
-    if not path: update_coords(coords)
-    else: update_fake_coords(coords)
-    return coords
+        return coords, bearing
+    else:
+        while ((coords[0] < target_co_ords[-1][0] and direction == 1) or (coords[0] > target_co_ords[-1][0] and direction == -1)):
+            x = round(coords[0] + (direction * look_ahead), 2)
+            y = round(f(x, model.coef_), 2)
+            coords = [x, y]
+            if not path: update_coords(coords, bearing)
+            else: update_fake_coords(coords)
+        if sub_pure: bearing = f(x, model.differenciate())
+        return coords, bearing
 
 def go_to(target_co_ords, coords, turn = True, path = False):
-    direction = -1
-    change = [target_co_ords[0] - coords[0], target_co_ords[1] - coords[1]]
-    total_move = math.sqrt(change[0] ** 2 + change[1] ** 2)
-    degrees_turn = round(math.degrees(math.atan(change[1]/change[0])), 2)
-    if change[1] >= 0:
-        if degrees_turn < 0: degrees_turn * -1 + 90
-    else:
-        direction = 1
-        if degrees_turn < 0: degrees_turn * -1
-        else: 180 - degrees_turn
-    print(total_move, degrees_turn, direction)
+    model = regress([coords, target_co_ords])
     coords = target_co_ords
-    if not path: update_coords(target_co_ords)
-    else: update_fake_coords(coords)
-    return coords
-
-def turn_degrees(motorpair, degrees):
-    return
-    #motor_pair.move_tank_for_degrees(motorpair, -1*degrees*4, degrees*4, 1000)
+    bearing = model.coef_[0]
+    print(bearing)
+    update_coords(target_co_ords, bearing)
+    update_fake_coords(coords)
+    return coords, bearing
 
 
 
 ############
 ### MAIN ###
 ############
-update_coords(coords)
-coords = curve(coords, [[0, 0], [2, 2], [4, 0]], 5)
-curve([0, 0], [[0, 0], [2, 2], [4, 0]], 0.1, True)
-coords = go_to([12, 42], coords)
-go_to([12, 42], [4, 0], path = True)
-coords = curve(coords, [[12, 42], [5, 1], [0, 0]], 5)
-curve([12, 42], [[12, 42], [5, 1], [0, 0]], 0.1, True)
-#coords = curve(coords, [[0, 0], [15, 32], [20, 53]], 1)
-#curve([0, 0], [[0, 0], [15, 32], [20, 53]], 0.1, True)
+update_coords(coords, bearing)
+update_fake_coords(coords)
+coords, bearing = go_to([1, 1], coords)
+#coords, bearing = go_to([2, 3], coords)
+curve([1, 1], 1, [[1, 1], [3, 4], [5, 1]], 0.1, False, False, True)
+coords, bearing = curve(coords, bearing, [[1, 1], [3, 4], [5, 1]], 0.4)
+#curve([1, 1], 1, [[1, 1], [3, 4], [5, 1]], 0.1, False, False, True)
+#coords, bearing = curve(coords, [[0, 0], [2, 2], [4, 0]], None, False)
 
-print(coords)
+## Code goes here
+
 data = np.array(hist)
 data2 = np.array(fake_hist)
 plt.plot(data2[:, 0], data2[:, 1], label="Original Path", linestyle="--")
