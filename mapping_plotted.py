@@ -203,12 +203,32 @@ def update_coords(coords, bearing):
 def update_fake_coords(coords):
     fake_hist.append(coords)
 
+def arc(current_coords, target_coords, current_bearing, look_ahead, W):
+    R = 0
+    t = 0.2
+    current_angle = round(math.degrees(math.atan(current_bearing)), 3)
+    mAB = (target_coords[1] - current_coords[1]) / (target_coords[0] - current_coords[0])
+    wanted_angle = round(math.degrees(math.atan(mAB)), 3)
+    angle_error = round(abs(current_angle - wanted_angle), 3)
+    R = (look_ahead / 2) / math.sin(angle_error)
+    inner = R - (W / 2)
+    outer = R + (W / 2)
+    innerArcLength = math.radians(2 * angle_error) * inner
+    outerArcLength = math.radians(2 * angle_error) * outer
+    outer = 1 if wanted_angle > current_angle else -1
+    innerSpeed = innerArcLength / t
+    outerSpeed = outerArcLength / t
+    print(current_bearing, mAB)
+    print(current_angle, wanted_angle, angle_error, R)
+    print(innerArcLength, outerArcLength)
+    print(outer)
+
 
 
 ##########################
 ### FRONTEND FUNCTIONS ###
 ##########################
-def curve(coords, bearing, target_co_ords, look_ahead, pure_pursuit = True, sub_pure = False, path = False):
+def curve(coords, bearing, target_co_ords, look_ahead, W = 10, pure_pursuit = True, path = False):
     model = regress(target_co_ords)
     direction = 1 if target_co_ords[-1][0] > coords[0] else -1
     if pure_pursuit:
@@ -223,10 +243,13 @@ def curve(coords, bearing, target_co_ords, look_ahead, pure_pursuit = True, sub_
                 possible_targets = solve(look_ahead, 100, coords, model.coef_, precision)
             chosen_target = possible_targets[-1]
             print(coords, chosen_target)
+            print(look_ahead, ((chosen_target[0] - coords[0])**2 + (chosen_target[1] - coords[1])**2)**0.5)
+            follow_arc = arc(coords, chosen_target, bearing, look_ahead, W)
             coords = chosen_target
             coords = [round(coords[0], 2), round(coords[1], 2)]
             if not path: update_coords(coords, bearing)
             else: update_fake_coords(coords)
+            break
         return coords, bearing
     else:
         while ((coords[0] < target_co_ords[-1][0] and direction == 1) or (coords[0] > target_co_ords[-1][0] and direction == -1)):
@@ -235,7 +258,6 @@ def curve(coords, bearing, target_co_ords, look_ahead, pure_pursuit = True, sub_
             coords = [x, y]
             if not path: update_coords(coords, bearing)
             else: update_fake_coords(coords)
-        if sub_pure: bearing = f(x, model.differenciate())
         return coords, bearing
 
 def go_to(target_co_ords, coords, turn = True, path = False):
@@ -255,9 +277,11 @@ def go_to(target_co_ords, coords, turn = True, path = False):
 update_coords(coords, bearing)
 update_fake_coords(coords)
 coords, bearing = go_to([1, 1], coords)
+#print(arc([0, 0], [2, 2], 0,  0.5, 2))
+#coords, bearing = go_to([1, 1], coords)
 #coords, bearing = go_to([2, 3], coords)
-curve([1, 1], 1, [[1, 1], [3, 4], [5, 1]], 0.1, False, False, True)
-coords, bearing = curve(coords, bearing, [[1, 1], [3, 4], [5, 1]], 0.4)
+#curve([1, 1], 1, [[1, 1], [3, 4], [5, 1]], 0.1, False, False, True)
+#coords, bearing = curve(coords, bearing, [[1, 1], [3, 4], [5, 1]], 0.4)
 #curve([1, 1], 1, [[1, 1], [3, 4], [5, 1]], 0.1, False, False, True)
 #coords, bearing = curve(coords, [[0, 0], [2, 2], [4, 0]], None, False)
 
